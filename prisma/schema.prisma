@@ -1,0 +1,67 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+model User {
+  id        String    @id @default(uuid())
+  name      String
+  email     String    @unique
+  password  String
+  createdAt DateTime  @default(now()) @map("created_at")
+  bookings  Booking[]
+
+  @@map("users")
+}
+
+model Pitch {
+  id           String    @id @default(uuid())
+  name         String
+  location     String
+  pricePerHour Int       @map("price_per_hour")
+  slots        Slot[]
+  bookings     Booking[]
+
+  @@map("pitches")
+}
+
+model Slot {
+  id        String    @id @default(uuid())
+  pitchId   String    @map("pitch_id")
+  startTime String    @map("start_time") // time-of-day template, e.g. "06:00"
+  endTime   String    @map("end_time")   // e.g. "07:00"
+  pitch     Pitch     @relation(fields: [pitchId], references: [id], onDelete: Cascade)
+  bookings  Booking[]
+
+  @@unique([pitchId, startTime])
+  @@map("slots")
+}
+
+model Booking {
+  id          String        @id @default(uuid())
+  userId      String        @map("user_id")
+  pitchId     String        @map("pitch_id")
+  slotId      String        @map("slot_id")
+  bookingDate DateTime      @map("booking_date") @db.Date
+  status      BookingStatus @default(CONFIRMED)
+  createdAt   DateTime      @default(now()) @map("created_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pitch Pitch @relation(fields: [pitchId], references: [id], onDelete: Cascade)
+  slot  Slot  @relation(fields: [slotId], references: [id], onDelete: Cascade)
+
+  // A partial UNIQUE index on (slot_id, booking_date) WHERE status = 'CONFIRMED'
+  // is added in the migration SQL. It is the durable guard against double-booking.
+  @@index([slotId, bookingDate])
+  @@index([userId])
+  @@map("bookings")
+}
