@@ -7,6 +7,7 @@ const slotActionSchema = z.object({
   pitchId: z.string().min(1),
   slotId: z.string().min(1),
   date: z.string().min(1),
+  tz: z.string().optional(), // IANA timezone, e.g. "Asia/Kolkata"
 });
 
 function requireUserId(req: Request): string {
@@ -16,16 +17,23 @@ function requireUserId(req: Request): string {
 
 export async function reserveSlot(req: Request, res: Response) {
   const userId = requireUserId(req);
-  const { pitchId, slotId, date } = slotActionSchema.parse(req.body);
-  const result = await bookingService.reserveSlot(userId, pitchId, slotId, date);
+  const { pitchId, slotId, date, tz } = slotActionSchema.parse(req.body);
+  const result = await bookingService.reserveSlot(userId, pitchId, slotId, date, tz);
   res.status(200).json(result);
 }
 
 export async function confirmBooking(req: Request, res: Response) {
   const userId = requireUserId(req);
-  const { pitchId, slotId, date } = slotActionSchema.parse(req.body);
-  const booking = await bookingService.confirmBooking(userId, pitchId, slotId, date);
+  const { pitchId, slotId, date, tz } = slotActionSchema.parse(req.body);
+  const booking = await bookingService.confirmBooking(userId, pitchId, slotId, date, tz);
   res.status(201).json(booking);
+}
+
+export async function releaseSlot(req: Request, res: Response) {
+  const userId = requireUserId(req);
+  const { pitchId, slotId, date } = slotActionSchema.parse(req.body);
+  const result = await bookingService.releaseSlot(userId, pitchId, slotId, date);
+  res.status(200).json(result);
 }
 
 export async function myBookings(req: Request, res: Response) {

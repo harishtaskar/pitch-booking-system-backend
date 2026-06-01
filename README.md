@@ -80,10 +80,15 @@ API runs on `http://localhost:4000` by default.
 | POST | `/auth/login` | — | `{ email, password }` | Returns `{ token, user }` |
 | POST | `/auth/logout` | ✓ | — | Stateless; client discards token |
 | GET | `/pitches` | — | — | List pitches |
-| GET | `/slots` | — | `?pitchId=&date=YYYY-MM-DD` | Slots with `available` / `reserved` / `booked` |
-| POST | `/reserve-slot` | ✓ | `{ pitchId, slotId, date }` | Place a 2-min hold |
-| POST | `/confirm-booking` | ✓ | `{ pitchId, slotId, date }` | Confirm a held slot |
+| GET | `/slots` | — | `?pitchId=&date=YYYY-MM-DD&tz=` | Future slots with `available` / `reserved` / `booked` |
+| POST | `/reserve-slot` | ✓ | `{ pitchId, slotId, date, tz? }` | Place a 2-min hold |
+| POST | `/confirm-booking` | ✓ | `{ pitchId, slotId, date, tz? }` | Confirm a held slot |
+| POST | `/release-slot` | ✓ | `{ pitchId, slotId, date }` | Release own hold instantly (e.g. dialog closed) |
 | GET | `/my-bookings` | ✓ | — | Current user's bookings |
+
+`GET /slots` and the booking actions accept an optional `tz` (the client's IANA
+timezone, e.g. `Asia/Kolkata`). It is used to hide/reject slots whose start time
+has already passed, keeping "expired" consistent between server and browser.
 
 Authenticated requests send `Authorization: Bearer <token>`.
 

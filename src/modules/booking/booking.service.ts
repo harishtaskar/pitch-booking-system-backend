@@ -4,6 +4,7 @@ import { prisma } from "../../config/prisma";
 import { redis } from "../../config/redis";
 import { emitSlotEvent } from "../../sockets/io";
 import { HttpError } from "../../utils/httpError";
+import { isSlotExpired } from "../../utils/time";
 import { normaliseDate, reservationKey } from "./reservation";
 
 async function getSlotForPitch(pitchId: string, slotId: string) {
@@ -12,6 +13,13 @@ async function getSlotForPitch(pitchId: string, slotId: string) {
     throw new HttpError(404, "Slot not found for this pitch");
   }
   return slot;
+}
+
+/** Reject actions on a slot whose start time has already passed. */
+function assertNotExpired(date: string, startTime: string, timeZone?: string) {
+  if (isSlotExpired(date, startTime, timeZone)) {
+    throw new HttpError(409, "This time slot has already passed");
+  }
 }
 
 /**
@@ -25,10 +33,12 @@ export async function reserveSlot(
   userId: string,
   pitchId: string,
   slotId: string,
-  rawDate: string
+  rawDate: string,
+  timeZone?: string
 ) {
   const date = normaliseDate(rawDate);
-  await getSlotForPitch(pitchId, slotId);
+  const slot = await getSlotForPitch(pitchId, slotId);
+  assertNotExpired(date, slot.startTime, timeZone);
 
   // Already confirmed by anyone? Cannot reserve.
   const confirmed = await prisma.booking.findFirst({
@@ -72,10 +82,12 @@ export async function confirmBooking(
   userId: string,
   pitchId: string,
   slotId: string,
-  rawDate: string
+  rawDate: string,
+  timeZone?: string
 ) {
   const date = normaliseDate(rawDate);
-  await getSlotForPitch(pitchId, slotId);
+  const slot = await getSlotForPitch(pitchId, slotId);
+  assertNotExpired(date, slot.startTime, timeZone);
 
   const existing = await prisma.booking.findFirst({
     where: { slotId, bookingDate: new Date(date), status: "CONFIRMED" },
@@ -120,6 +132,29 @@ export async function confirmBooking(
   await redis.del(key);
   emitSlotEvent("slot:booked", { pitchId, slotId, date, status: "booked" });
   return booking;
+}
+
+/**
+ * Release a temporary hold immediately (e.g. the user closed/cancelled the
+ * booking dialog) so the slot becomes available at once instead of waiting for
+ * the 2-minute TTL. Only the hold's owner can release it; idempotent otherwise.
+ */
+export async function releaseSlot(
+  userId: string,
+  pitchId: string,
+  slotId: string,
+  rawDate: string
+) {
+  const date = normaliseDate(rawDate);
+  await getSlotForPitch(pitchId, slotId);
+
+  const key = reservationKey(pitchId, slotId, date);
+  const owner = await redis.get(key);
+  if (owner === userId) {
+    await redis.del(key);
+    emitSlotEvent("slot:released", { pitchId, slotId, date, status: "available" });
+  }
+  return { released: true, date };
 }
 
 export async function getMyBookings(userId: string) {

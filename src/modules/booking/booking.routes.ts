@@ -7,6 +7,7 @@ const router = Router();
 
 router.post("/reserve-slot", authMiddleware, asyncHandler(bookingController.reserveSlot));
 router.post("/confirm-booking", authMiddleware, asyncHandler(bookingController.confirmBooking));
+router.post("/release-slot", authMiddleware, asyncHandler(bookingController.releaseSlot));
 router.get("/my-bookings", authMiddleware, asyncHandler(bookingController.myBookings));
 
 export default router;

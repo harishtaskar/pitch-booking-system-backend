@@ -1,6 +1,7 @@
 import { prisma } from "../../config/prisma";
 import { redis } from "../../config/redis";
 import { HttpError } from "../../utils/httpError";
+import { isSlotExpired } from "../../utils/time";
 import { normaliseDate, reservationKey } from "../booking/reservation";
 
 export type SlotStatus = "available" | "reserved" | "booked";
@@ -19,17 +20,20 @@ export interface SlotAvailability {
  */
 export async function getAvailability(
   pitchId: string,
-  rawDate: string
+  rawDate: string,
+  timeZone?: string
 ): Promise<{ pitchId: string; date: string; slots: SlotAvailability[] }> {
   const date = normaliseDate(rawDate);
 
   const pitch = await prisma.pitch.findUnique({ where: { id: pitchId } });
   if (!pitch) throw new HttpError(404, "Pitch not found");
 
-  const slots = await prisma.slot.findMany({
+  // Only return slots that have not yet started (in the caller's timezone).
+  const allSlots = await prisma.slot.findMany({
     where: { pitchId },
     orderBy: { startTime: "asc" },
   });
+  const slots = allSlots.filter((s) => !isSlotExpired(date, s.startTime, timeZone));
 
   const bookings = await prisma.booking.findMany({
     where: { pitchId, bookingDate: new Date(date), status: "CONFIRMED" },
