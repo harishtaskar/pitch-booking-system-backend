@@ -125,6 +125,10 @@ CREATE UNIQUE INDEX bookings_confirmed_slot_date_unique
 Source of truth is `prisma/schema.prisma`; the partial index is added in
 `prisma/migrations/.../migration.sql`.
 
+> **Prisma 7:** the connection URL lives in `prisma.config.ts` (read by the
+> Prisma CLI), and the runtime `PrismaClient` connects via the `@prisma/adapter-pg`
+> driver adapter (`src/config/prisma.ts`) — not via a `url` in the schema.
+
 ---
 
 ## Deployment notes

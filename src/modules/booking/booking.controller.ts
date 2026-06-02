@@ -38,6 +38,7 @@ export async function releaseSlot(req: Request, res: Response) {
 
 export async function myBookings(req: Request, res: Response) {
   const userId = requireUserId(req);
-  const bookings = await bookingService.getMyBookings(userId);
+  const tz = typeof req.query.tz === "string" ? req.query.tz : undefined;
+  const bookings = await bookingService.getMyBookings(userId, tz);
   res.json(bookings);
 }

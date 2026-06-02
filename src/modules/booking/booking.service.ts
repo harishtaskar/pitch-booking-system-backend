@@ -157,13 +157,35 @@ export async function releaseSlot(
   return { released: true, date };
 }
 
-export async function getMyBookings(userId: string) {
-  return prisma.booking.findMany({
+/**
+ * A booking's slots are classified relative to "now" (in the caller's tz):
+ *  - upcoming: CONFIRMED and the slot has not yet started
+ *  - history:  the slot has already started/passed, or the booking is CANCELLED
+ * Upcoming is sorted soonest-first; history most-recent-first.
+ */
+export async function getMyBookings(userId: string, timeZone?: string) {
+  const bookings = await prisma.booking.findMany({
     where: { userId },
-    orderBy: [{ bookingDate: "desc" }, { createdAt: "desc" }],
     include: {
-      pitch: { select: { id: true, name: true, location: true } },
+      pitch: { select: { id: true, name: true, location: true, pricePerHour: true } },
       slot: { select: { id: true, startTime: true, endTime: true } },
     },
   });
+
+  const key = (b: (typeof bookings)[number]) =>
+    `${b.bookingDate.toISOString().slice(0, 10)} ${b.slot.startTime}`;
+
+  const upcomingBookings = bookings
+    .filter(
+      (b) =>
+        b.status === "CONFIRMED" &&
+        !isSlotExpired(b.bookingDate.toISOString().slice(0, 10), b.slot.startTime, timeZone)
+    )
+    .sort((a, b) => key(a).localeCompare(key(b))); // soonest first
+
+  const bookingHistory = bookings
+    .filter((b) => !upcomingBookings.includes(b))
+    .sort((a, b) => key(b).localeCompare(key(a))); // most recent first
+
+  return { upcomingBookings, bookingHistory };
 }
